@@ -124,6 +124,7 @@ python train_recommender.py
 ---
 
 ### 6️⃣ Run Backend (FastAPI)
+inside backend/
 
 ```bash
 uvicorn main:app --reload
@@ -138,8 +139,10 @@ http://127.0.0.1:8000/docs
 ---
 
 ### 7️⃣ Run Dashboard (Streamlit)
+inside venv
 
-cd ../dashboard streamlit run app.py
+streamlit run dashboard/app.py
+
 
 ---
 
