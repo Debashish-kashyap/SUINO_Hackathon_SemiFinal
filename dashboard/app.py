@@ -244,35 +244,50 @@ with st.sidebar:
     st.markdown("### 👤 User Profile Input")
     st.markdown("---")
 
-    age              = st.slider("Age", 16, 70, 24)
-    gender           = st.selectbox("Gender", ["Male", "Female", "Other"])
-    account_age      = st.slider("Account Age (months)", 0, 120, 3)
-    sub_type         = st.selectbox("Subscription", ["Basic", "Standard", "Premium", "Mobile"])
-    monthly_fee      = st.number_input("Monthly Fee (₹)", 49, 799, 199)
-    payment          = st.selectbox("Payment Method", ["UPI", "Credit Card", "Debit Card", "Net Banking", "Wallet"])
+    # ── PRIMARY FIELDS (always visible)
+    age          = st.slider("Age", 16, 70, 24)
+    account_age  = st.slider("Account Age (months)", 0, 120, 3)
+    sub_type     = st.selectbox("Subscription", ["Basic", "Standard", "Premium", "Mobile"])
+    monthly_fee  = st.number_input("Monthly Fee (₹)", 49, 799, 199)
+    avg_watch    = st.slider("Avg Watch Time (min/session)", 0, 180, 25)
+    sessions_pw  = st.slider("Watch Sessions / Week", 0, 30, 4)
+    completion   = st.slider("Content Completion Rate", 0.0, 1.0, 0.5, 0.05)
+    days_login   = st.slider("Days Since Last Login", 0, 60, 15)
+    region       = st.selectbox("Region Type", ["Tier-1", "Tier-2", "Tier-3"])
+    language     = st.selectbox("Language", ["Hindi", "Assamese", "Tamil", "Kannada", "Marathi", "English"])
 
     st.markdown("---")
-    region           = st.selectbox("Region Type", ["Tier-1", "Tier-2", "Tier-3"])
-    city             = st.selectbox("City", ["Mumbai", "Delhi", "Bangalore", "Chennai",
+
+    # ── SECONDARY FIELDS (collapsible)
+    with st.expander("⚙️ Advanced Options (optional)"):
+        gender       = st.selectbox("Gender", ["— Not specified —", "Male", "Female", "Other"])
+        payment      = st.selectbox("Payment Method", ["— Not specified —", "UPI", "Credit Card", "Debit Card", "Net Banking", "Wallet"])
+        device       = st.selectbox("Primary Device", ["— Not specified —", "Mobile", "Tablet", "Laptop", "Smart TV", "Desktop"])
+        city         = st.selectbox("City", ["— Not specified —", "Mumbai", "Delhi", "Bangalore", "Chennai",
                                               "Guwahati", "Pune", "Jaipur", "Lucknow",
                                               "Dibrugarh", "Silchar", "Tezpur", "Jorhat"])
-    language         = st.selectbox("Language", ["Hindi", "Assamese", "Tamil", "Kannada", "Marathi", "English"])
-
-    st.markdown("---")
-    device           = st.selectbox("Primary Device", ["Mobile", "Tablet", "Laptop", "Smart TV", "Desktop"])
-    devices_used     = st.slider("Devices Used", 1, 5, 1)
-    genre            = st.selectbox("Favourite Genre", ["Drama", "Action", "Comedy", "Horror", "Romance", "Sci-Fi", "Thriller", "Documentary"])
-    avg_watch        = st.slider("Avg Watch Time (min/session)", 0, 180, 25)
-    sessions_pw      = st.slider("Watch Sessions / Week", 0, 30, 4)
-    binge            = st.slider("Binge Sessions", 0, 20, 1)
-    completion       = st.slider("Completion Rate", 0.0, 1.0, 0.5, 0.05)
-    rating           = st.slider("Rating Given", 0.0, 5.0, 3.5, 0.5)
-    interactions     = st.slider("Content Interactions", 0, 100, 8)
-    click_rate       = st.slider("Recommendation Click Rate", 0.0, 1.0, 0.3, 0.05)
-    days_login       = st.slider("Days Since Last Login", 0, 60, 15)
-    churned_before   = st.selectbox("Churned Before?", [0, 1], format_func=lambda x: "Yes" if x else "No")
+        devices_used   = st.slider("Devices Used", 0, 5, 0)
+        genre          = st.selectbox("Favourite Genre", ["— Not specified —", "Drama", "Action", "Comedy", "Horror", "Romance", "Sci-Fi", "Thriller", "Documentary"])
+        binge          = st.slider("Binge Sessions", 0, 20, 0)
+        rating         = st.slider("Rating Given (0 = not specified)", 0.0, 5.0, 0.0, 0.5)
+        interactions   = st.slider("Content Interactions (0 = not specified)", 0, 100, 0)
+        click_rate     = st.slider("Recommendation Click Rate (0 = not specified)", 0.0, 1.0, 0.0, 0.05)
+        churned_before = st.selectbox("Churned Before?", ["— Not specified —", "No", "Yes"])
 
     predict_btn = st.button("🔍 Analyse User", use_container_width=True)
+
+    # ── RESOLVE OPTIONAL VALUES (None if not specified)
+    gender_val       = None if gender == "— Not specified —" else gender
+    payment_val      = None if payment == "— Not specified —" else payment
+    device_val       = None if device == "— Not specified —" else device
+    city_val         = None if city == "— Not specified —" else city
+    genre_val        = None if genre == "— Not specified —" else genre
+    devices_used_val = None if devices_used == 0 else devices_used
+    binge_val        = None if binge == 0 else binge
+    rating_val       = None if rating == 0.0 else rating
+    interactions_val = None if interactions == 0 else interactions
+    click_rate_val   = None if click_rate == 0.0 else click_rate
+    churned_val      = None if churned_before == "— Not specified —" else (1 if churned_before == "Yes" else 0)
 
 
 
@@ -282,26 +297,28 @@ tab1, tab2, tab3 = st.tabs(["🛡️ Churn Shield AI", "🗺️ Regional Intelli
 with tab1:
     if predict_btn:
         payload = {
-            "age": age, "gender": gender,
+            "age": age,
             "account_age_months": account_age,
             "subscription_type": sub_type,
             "monthly_fee": monthly_fee,
-            "payment_method": payment,
-            "primary_device": device,
-            "devices_used": devices_used,
-            "favorite_genre": genre,
             "avg_watch_time_minutes": float(avg_watch),
             "watch_sessions_per_week": float(sessions_pw),
-            "binge_watch_sessions": binge,
             "completion_rate": completion,
-            "rating_given": rating,
-            "content_interactions": interactions,
-            "recommendation_click_rate": click_rate,
             "days_since_last_login": days_login,
-            "churned": churned_before,
             "region_type": region,
-            "city": city,
             "language": language,
+            # optional — only sent if user specified
+            "gender": gender_val,
+            "payment_method": payment_val,
+            "primary_device": device_val,
+            "city": city_val,
+            "favorite_genre": genre_val,
+            "devices_used": devices_used_val,
+            "binge_watch_sessions": binge_val,
+            "rating_given": rating_val,
+            "content_interactions": interactions_val,
+            "recommendation_click_rate": click_rate_val,
+            "churned": churned_val,
         }
 
         with st.spinner("Running Churn Shield AI..."):

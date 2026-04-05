@@ -5,10 +5,12 @@ from typing import Optional, List, Literal
 import pickle
 import numpy as np
 import pandas as pd
+import os
 from datetime import datetime
 from google import genai
 import json
 
+BASE_DIR = os.path.dirname(__file__)
 
 client = genai.Client(api_key="AIzaSyC5BTetHQ-EDbtk0znu4EeRr11yokVDuEE")
 
@@ -37,10 +39,10 @@ except FileNotFoundError:
 
 
 try:
-    movies = pickle.load(open("movies.pkl", "rb"))
-    similarity = pickle.load(open("similarity.pkl", "rb"))
-    vectors = pickle.load(open("vectors.pkl", "rb")) 
-    cv = pickle.load(open("vectorizer.pkl", "rb"))
+    movies = pickle.load(open(os.path.join(BASE_DIR, "movies.pkl"), "rb"))
+    similarity = pickle.load(open(os.path.join(BASE_DIR, "similarity.pkl"), "rb"))
+    vectors = pickle.load(open(os.path.join(BASE_DIR, "vectors.pkl"), "rb"))
+    cv = pickle.load(open(os.path.join(BASE_DIR, "vectorizer.pkl"), "rb"))
     print("✅ Recommendation models loaded successfully")
 except Exception as e:
     movies, similarity, vectors, cv = None, None, None, None
@@ -107,40 +109,38 @@ RETENTION_MESSAGES = {
     "Tier-1": "💎 As a valued member, enjoy 1 month Premium FREE. Binge {top_show} and more — no interruptions. Tap to activate.",
 }
 
-
 class UserFeatures(BaseModel):
 
-    age:                        int   = Field(..., ge=10, le=100, example=24)
-    gender:                     Literal["Male", "Female", "Other"] = Field("Male", example="Male")
+    # ── PRIMARY (mandatory)
+    age:                    int   = Field(..., ge=10, le=100, example=24)
+    account_age_months:     int   = Field(..., ge=0, le=240, example=3)
+    subscription_type:      Literal["Basic", "Standard", "Premium", "Mobile"] = Field(..., example="Basic")
+    monthly_fee:            float = Field(..., ge=0, example=199.0)
+    avg_watch_time_minutes: float = Field(..., ge=0, example=45.0)
+    watch_sessions_per_week: float = Field(..., ge=0, example=4.0)
+    completion_rate:        float = Field(..., ge=0.0, le=1.0, example=0.5)
+    days_since_last_login:  int   = Field(..., ge=0, example=15)
+    region_type:            Literal["Tier-1", "Tier-2", "Tier-3"] = Field(..., example="Tier-2")
+    language:               Literal["Assamese", "Hindi", "Tamil", "Kannada", "Marathi", "English"] = Field(..., example="Assamese")
 
-    account_age_months:         int   = Field(..., ge=0, le=240, example=3)
-    subscription_type:          Literal["Basic", "Standard", "Premium", "Mobile"] = Field(..., example="Basic")
-    monthly_fee:                float = Field(..., ge=0, example=199.0)
-    payment_method:             Literal["Credit Card", "Debit Card", "UPI", "Net Banking", "Wallet"] = Field("UPI", example="UPI")
-
-    primary_device:             Literal["Mobile", "Tablet", "Laptop", "Smart TV", "Desktop"] = Field("Mobile", example="Mobile")
-    devices_used:               int   = Field(1, ge=1, le=10, example=1)
-    favorite_genre:             Literal["Action", "Comedy", "Drama", "Horror", "Romance", "Sci-Fi", "Thriller", "Documentary"] = Field("Drama", example="Drama")
-    avg_watch_time_minutes:     float = Field(..., ge=0, example=45.0)
-    watch_sessions_per_week:    float = Field(..., ge=0, example=4.0)
-    binge_watch_sessions:       int   = Field(0, ge=0, example=1)
-    completion_rate:            float = Field(0.5, ge=0.0, le=1.0, example=0.6)
-    rating_given:               float = Field(3.0, ge=0.0, le=5.0, example=3.5)
-    content_interactions:       int   = Field(5, ge=0, example=8)
-    recommendation_click_rate:  float = Field(0.3, ge=0.0, le=1.0, example=0.3)
-    days_since_last_login:      int   = Field(..., ge=0, example=15)
-
-    churned:                    int   = Field(0, ge=0, le=1, example=0)
-
-    region_type:  Literal["Tier-1", "Tier-2", "Tier-3"] = Field(..., example="Tier-2")
-    city:         str = Field(..., example="Guwahati")
-    language:     Literal["Assamese", "Hindi", "Tamil", "Kannada", "Marathi", "English"] = Field(..., example="Assamese")
+    # ── SECONDARY (optional — None = use dataset average)
+    gender:                    Optional[Literal["Male", "Female", "Other"]] = Field(None)
+    payment_method:            Optional[Literal["Credit Card", "Debit Card", "UPI", "Net Banking", "Wallet"]] = Field(None)
+    primary_device:            Optional[Literal["Mobile", "Tablet", "Laptop", "Smart TV", "Desktop"]] = Field(None)
+    devices_used:              Optional[int]   = Field(None)
+    favorite_genre:            Optional[Literal["Action", "Comedy", "Drama", "Horror", "Romance", "Sci-Fi", "Thriller", "Documentary"]] = Field(None)
+    binge_watch_sessions:      Optional[int]   = Field(None)
+    rating_given:              Optional[float] = Field(None)
+    content_interactions:      Optional[int]   = Field(None)
+    recommendation_click_rate: Optional[float] = Field(None)
+    churned:                   Optional[int]   = Field(None)
+    city:                      Optional[str]   = Field(None)
 
 
 class PredictResponse(BaseModel):
-    user_risk:       str    
-    churn_prob:      float  
-    churn_label:     int    
+    user_risk:       str
+    churn_prob:      float
+    churn_label:     int
     risk_factors:    List[str]
     recommendation:  str
 
@@ -158,6 +158,23 @@ class RetainRequest(BaseModel):
     churn_prob:  float
 
 
+# ─────────────────────────────────────────────
+# DATASET AVERAGES (used when optional fields are None)
+# ─────────────────────────────────────────────
+FIELD_AVERAGES = {
+    "gender":                    1,      # Male (most common)
+    "payment_method":            2,      # UPI (most common in India)
+    "primary_device":            2,      # Mobile
+    "devices_used":              2,
+    "favorite_genre":            2,      # Drama
+    "binge_watch_sessions":      2,
+    "rating_given":              3.5,
+    "content_interactions":      15,
+    "recommendation_click_rate": 0.35,
+    "churned":                   0,
+    "city":                      4,      # Guwahati code
+}
+
 
 def encode_user(u: UserFeatures) -> np.ndarray:
     """
@@ -168,28 +185,29 @@ def encode_user(u: UserFeatures) -> np.ndarray:
      'completion_rate','rating_given','content_interactions',
      'recommendation_click_rate','days_since_last_login','churned',
      'region_type','city','language']
+    Optional fields use dataset averages when None.
     """
     row = [
         u.age,
-        GENDER_MAP.get(u.gender, 0),
+        GENDER_MAP.get(u.gender, FIELD_AVERAGES["gender"]) if u.gender else FIELD_AVERAGES["gender"],
         u.account_age_months,
         SUBSCRIPTION_MAP.get(u.subscription_type, 0),
         u.monthly_fee,
-        PAYMENT_MAP.get(u.payment_method, 2),
-        DEVICE_MAP.get(u.primary_device, 2),
-        u.devices_used,
-        GENRE_MAP.get(u.favorite_genre, 2),
+        PAYMENT_MAP.get(u.payment_method, FIELD_AVERAGES["payment_method"]) if u.payment_method else FIELD_AVERAGES["payment_method"],
+        DEVICE_MAP.get(u.primary_device, FIELD_AVERAGES["primary_device"]) if u.primary_device else FIELD_AVERAGES["primary_device"],
+        u.devices_used if u.devices_used is not None else FIELD_AVERAGES["devices_used"],
+        GENRE_MAP.get(u.favorite_genre, FIELD_AVERAGES["favorite_genre"]) if u.favorite_genre else FIELD_AVERAGES["favorite_genre"],
         u.avg_watch_time_minutes,
         u.watch_sessions_per_week,
-        u.binge_watch_sessions,
+        u.binge_watch_sessions if u.binge_watch_sessions is not None else FIELD_AVERAGES["binge_watch_sessions"],
         u.completion_rate,
-        u.rating_given,
-        u.content_interactions,
-        u.recommendation_click_rate,
+        u.rating_given if u.rating_given is not None else FIELD_AVERAGES["rating_given"],
+        u.content_interactions if u.content_interactions is not None else FIELD_AVERAGES["content_interactions"],
+        u.recommendation_click_rate if u.recommendation_click_rate is not None else FIELD_AVERAGES["recommendation_click_rate"],
         u.days_since_last_login,
-        u.churned,
+        u.churned if u.churned is not None else FIELD_AVERAGES["churned"],
         REGION_MAP.get(u.region_type, 0),
-        CITY_MAP.get(u.city, 0),
+        CITY_MAP.get(u.city, FIELD_AVERAGES["city"]) if u.city else FIELD_AVERAGES["city"],
         LANGUAGE_MAP.get(u.language, 0),
     ]
     return np.array(row).reshape(1, -1)
@@ -217,18 +235,20 @@ def compute_risk_factors(u: UserFeatures) -> List[str]:
 def mock_churn_prob(u: UserFeatures) -> float:
     """Fallback deterministic score when model.pkl is missing."""
     score = 0.0
-    if u.account_age_months < 6:       score += 0.4
+    if u.account_age_months < 6:        score += 0.4
     if u.subscription_type == "Basic":  score += 0.3
     if u.avg_watch_time_minutes < 30:   score += 0.2
     if u.days_since_last_login > 10:    score += 0.1
     return min(score, 0.99)
 
 
+
+
 from sklearn.metrics.pairwise import cosine_similarity
 
 def ml_recommend(movie: str):
     if movies is None:
-        return ["Recommendation model not loaded"]
+        return [item["title"] for item in REGIONAL_CONTENT.get("Hindi", [])[:3]]
 
     movie = movie.lower()
 
@@ -248,8 +268,13 @@ def ml_recommend(movie: str):
 
 
 def ml_recommend_by_features(query: str):
-    if vectors is None:
-        return ["Recommendation model not loaded"]
+    if vectors is None or movies is None:
+    
+        for lang in REGIONAL_CONTENT:
+            if lang.lower() in query.lower():
+                return [item["title"] for item in REGIONAL_CONTENT[lang][:3]]
+        default = next(iter(REGIONAL_CONTENT.values()))
+        return [item["title"] for item in default[:3]]
 
     query_vector = cv.transform([query]).toarray()
 
