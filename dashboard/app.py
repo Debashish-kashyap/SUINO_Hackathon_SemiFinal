@@ -416,18 +416,32 @@ with tab2:
             st.success(f"📍 Showing top picks for **{r_lang}** speakers in **{r_region}** cities")
             st.caption(f"🤖 {result['ai_note']}")
 
-            cols = st.columns(len(result["content"]))
-            for i, item in enumerate(result["content"]):
-                with cols[i]:
-                    st.markdown(f"""
-                    <div class='metric-card' style='text-align:left;'>
-                        <div style='font-size:1.4rem;margin-bottom:6px'>🎬</div>
-                        <div style='font-family:Bebas Neue;font-size:1.2rem;color:#fff;letter-spacing:1px'>{item['title']}</div>
-                        <div style='color:#888;font-size:0.8rem;margin:4px 0'>{item['genre']} · ⭐ {item['score']}</div>
-                        <div style='color:#e50914;font-size:0.75rem'>{'📱 Mobile Optimised' if item['mobile_optimised'] else '🖥️ All Devices'}</div>
-                       <div style='color:#666;font-size:0.72rem;margin-top:6px'>{item.get('why', 'AI recommended for you')}</div>
-                    </div>
-                    """, unsafe_allow_html=True)
+            items = result.get("content", [])
+
+            if len(items) == 0:
+                st.warning("⚠️ No recommendations found")
+            else:
+                cols = st.columns(min(len(items), 5))  # max 5 cards
+
+                for i, item in enumerate(items[:5]):
+                    with cols[i]:
+                        st.markdown(f"""
+                        <div class='metric-card' style='text-align:left;'>
+                            <div style='font-size:1.4rem;margin-bottom:6px'>🎬</div>
+                            <div style='font-family:Bebas Neue;font-size:1.2rem;color:#fff;letter-spacing:1px'>
+                                {item['title']}
+                            </div>
+                            <div style='color:#888;font-size:0.8rem;margin:4px 0'>
+                                {item['genre']} · ⭐ {item['score']}
+                            </div>
+                            <div style='color:#e50914;font-size:0.75rem'>
+                                {'📱 Mobile Optimised' if item['mobile_optimised'] else '🖥️ All Devices'}
+                            </div>
+                            <div style='color:#666;font-size:0.72rem;margin-top:6px'>
+                                {item.get('why', 'AI recommended for you')}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("<div class='section-title'>INDIA CONTENT REACH MAP</div>", unsafe_allow_html=True)

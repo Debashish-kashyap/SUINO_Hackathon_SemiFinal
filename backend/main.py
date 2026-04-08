@@ -339,51 +339,64 @@ def predict_churn(user: UserFeatures):
 @app.post("/recommend", tags=["Hyper-Local Intelligence"])
 def recommend_content(req: RecommendRequest):
     try:
-        prompt = f"""
-        Suggest exactly 3 movies or web series for a Netflix user in India who:
-        - Speaks {req.language}
-        - Lives in a {req.region_type} city
-        - Prefers {req.genre_pref if req.genre_pref else 'any'} genre
+        if movies is None or similarity is None:
+            raise Exception("ML models not loaded")
 
-        Rules:
-        - Prefer {req.language}-language content
-        - Must be real, existing titles
-        - Return ONLY a JSON array, no extra text, no markdown
+        import random
 
-        Format:
-        [{{"title":"...","genre":"...","score":8.5,"why":"one line reason"}}]
-        """
-        response = client.models.generate_content(
-            model="gemini-2.0-flash-lite",
-            contents=prompt
+        filtered = movies[movies['language'].str.lower() == req.language.lower()]
+
+        if req.genre_pref:
+            filtered = filtered[
+                filtered['genres'].str.contains(req.genre_pref, case=False, na=False)
+            ]
+
+        if len(filtered) < 10:
+            filtered = movies
+
+        random_idx = random.choice(filtered.index.tolist())
+
+        distances = similarity[random_idx]
+
+        movies_list = sorted(
+            list(enumerate(distances)),
+            reverse=True,
+            key=lambda x: x[1]
         )
-        raw = response.text.strip().replace("```json", "").replace("```", "").strip()
-        content = json.loads(raw)
-    except Exception as e:
-     print(f"❌ Gemini error: {e}")
 
-    query = f"{req.language} {req.genre_pref or ''}"
-    ml_results = ml_recommend_by_features(query)
+        results = []
 
-    content = [
-        {
-            "title": title,
-            "genre": req.genre_pref or "Mixed",
-            "score": 8.0,
-            "why": "Recommended by ML similarity engine"
+        for i in movies_list:
+            row = movies.iloc[i[0]]
+
+            if row['language'].lower() != req.language.lower():
+                continue
+
+            if req.genre_pref:
+                if req.genre_pref.lower() not in row["genres"].lower():
+                    continue
+
+            results.append({
+                "title": row["title"],
+                "genre": row["genres"],
+                "score": round(float(i[1]), 2),
+                "why": f"Similar to {movies.iloc[random_idx]['title']}",
+                "mobile_optimised": req.region_type == "Tier-3"
+            })
+
+            if len(results) == 5:
+                break
+
+
+        return {
+            "language": req.language,
+            "region_type": req.region_type,
+            "content": results,
+            "ai_note": "Powered by ML similarity engine (language + genre aware)"
         }
-        for title in ml_results[:3]
-    ]
 
-    mobile_flag = req.region_type == "Tier-3"
-    results = [{**item, "mobile_optimised": mobile_flag} for item in content[:3]]
-
-    return {
-        "language":    req.language,
-        "region_type": req.region_type,
-        "content":     results,
-        "ai_note":     f"Powered by Gemini 2.0 Flash Lite — {req.language} Regional AI",
-    }
+    except Exception as e:
+       return {"error": str(e)}
 
 @app.post("/retain", tags=["Retention Automation"])
 def retain_user(req: RetainRequest):

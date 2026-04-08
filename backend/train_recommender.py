@@ -3,12 +3,13 @@ import pickle
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-movies = pd.read_csv("netflix_titles.csv", encoding='latin1')
+movies = pd.read_csv("custom_movies.csv", encoding='latin1')
 
-movies['description'] = movies['description'].fillna('')
-movies['listed_in'] = movies['listed_in'].fillna('')
+movies['overview'] = movies['overview'].fillna('')
+movies['genres'] = movies['genres'].fillna('')
+movies['language'] = movies['language'].fillna('')
 
-movies['tags'] = movies['description'] + " " + movies['listed_in']
+movies['tags'] = movies['overview'] + " " + movies['genres'] + " " + movies['language']
 
 cv = CountVectorizer(max_features=5000, stop_words='english')
 vectors = cv.fit_transform(movies['tags']).toarray()
@@ -20,4 +21,4 @@ pickle.dump(similarity, open("similarity.pkl", "wb"))
 pickle.dump(cv, open("vectorizer.pkl", "wb"))
 pickle.dump(vectors, open("vectors.pkl", "wb"))
 
-print("✅ Netflix dataset model created!")
+print("✅ Language-aware model created!")
