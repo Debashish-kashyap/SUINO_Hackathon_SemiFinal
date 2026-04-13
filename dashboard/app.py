@@ -1,3 +1,4 @@
+import html
 import streamlit as st
 import requests
 import pandas as pd
@@ -234,6 +235,82 @@ st.markdown("""
     -webkit-line-clamp: 4;
     -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+/* Netflix-style horizontal row for regional recommendations (not Streamlit columns — avoids mobile stack) */
+.nexus-poster-rail {
+    margin: 8px 0 20px;
+    width: 100%;
+}
+.nexus-poster-rail__track {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    padding: 4px 2px 12px;
+    scrollbar-width: thin;
+}
+.nexus-poster-rail__track::-webkit-scrollbar {
+    height: 5px;
+}
+.nexus-poster-rail__track::-webkit-scrollbar-thumb {
+    background: #e50914;
+    border-radius: 3px;
+}
+.nexus-poster-rail .poster-card {
+    flex: 0 0 auto;
+    width: clamp(118px, 44vw, 200px);
+    margin-bottom: 0;
+    scroll-snap-align: start;
+}
+@media (min-width: 769px) {
+    .nexus-poster-rail .poster-card {
+        width: clamp(140px, 17vw, 220px);
+    }
+}
+/* Touch / narrow: show metadata without relying on hover */
+@media (hover: none), (max-width: 768px) {
+    .nexus-poster-rail .poster-info-hover {
+        max-height: 120px;
+        opacity: 1;
+        margin-top: 6px;
+    }
+    .nexus-poster-rail .poster-card:hover .poster-img {
+        filter: none;
+    }
+    .nexus-poster-rail .poster-card:active {
+        transform: scale(0.98);
+    }
+}
+/* Bleed row to screen edges on mobile (full-bleed swipe row) */
+@media (max-width: 768px) {
+    .nexus-poster-rail {
+        margin-left: -1rem;
+        margin-right: -1rem;
+        width: calc(100% + 2rem);
+    }
+    .nexus-poster-rail__track {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+    .nexus-poster-rail .poster-title {
+        font-size: 1.05rem;
+    }
+}
+@media (max-width: 480px) {
+    .nexus-poster-rail {
+        margin-left: -0.5rem;
+        margin-right: -0.5rem;
+        width: calc(100% + 1rem);
+    }
+    .nexus-poster-rail__track {
+        padding-left: 0.5rem;
+        padding-right: 0.5rem;
+    }
 }
 
 /* Section titles */
@@ -532,6 +609,34 @@ def risk_badge(risk):
     cls = {"High": "risk-high", "Medium": "risk-medium", "Low": "risk-low"}.get(risk, "risk-low")
     return f'<span class="{cls}">{risk} Risk</span>'
 
+
+def poster_rail_html(items, poster_fn):
+    """Single horizontal-scroll row (Netflix-style on mobile); escapes text for safe HTML."""
+    chunks = ['<div class="nexus-poster-rail"><div class="nexus-poster-rail__track">']
+    for item in items[:5]:
+        poster_url = poster_fn(item["title"])
+        title_txt = html.escape(item["title"])
+        title_attr = html.escape(item["title"], quote=True)
+        genre = html.escape(str(item["genre"]))
+        score = html.escape(str(item["score"]))
+        why = html.escape(str(item.get("why", "AI recommended for you")))
+        src = html.escape(poster_url, quote=True)
+        badge_txt = "📱 Mobile Optimised" if item["mobile_optimised"] else "🖥️ All Devices"
+        badge = html.escape(badge_txt)
+        chunks.append(
+            f'<div class="poster-card">'
+            f'<img src="{src}" class="poster-img" alt="{title_attr}">'
+            f'<div class="poster-overlay">'
+            f'<div class="poster-title">{title_txt}</div>'
+            f'<div class="poster-info-hover">'
+            f'<div class="poster-info">{genre} · ⭐ {score}</div>'
+            f'<div><span class="poster-badge">{badge}</span></div>'
+            f'<div class="poster-why">{why}</div>'
+            f"</div></div></div>"
+        )
+    chunks.append("</div></div>")
+    return "".join(chunks)
+
 def gauge_chart(prob):
     fig = go.Figure(go.Indicator(
         mode="gauge+number",
@@ -782,30 +887,7 @@ with tab2:
             if len(items) == 0:
                 st.warning("⚠️ No recommendations found")
             else:
-                cols = st.columns(min(len(items), 5))  # max 5 cards
-
-                for i, item in enumerate(items[:5]):
-                    with cols[i]:
-                        poster_url = get_movie_poster(item['title'])
-                        st.markdown(f"""
-                        <div class='poster-card'>
-                            <img src='{poster_url}' class='poster-img' alt='{item['title']}'>
-                            <div class='poster-overlay'>
-                                <div class='poster-title'>{item['title']}</div>
-                                <div class='poster-info-hover'>
-                                    <div class='poster-info'>
-                                        {item['genre']} · ⭐ {item['score']}
-                                    </div>
-                                    <div>
-                                        <span class='poster-badge'>{'📱 Mobile Optimised' if item['mobile_optimised'] else '🖥️ All Devices'}</span>
-                                    </div>
-                                    <div class='poster-why'>
-                                        {item.get('why', 'AI recommended for you')}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        """, unsafe_allow_html=True)
+                st.markdown(poster_rail_html(items, get_movie_poster), unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("<div class='section-title'>INDIA CONTENT REACH MAP</div>", unsafe_allow_html=True)
