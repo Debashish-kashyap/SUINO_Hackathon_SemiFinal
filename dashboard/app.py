@@ -1,4 +1,8 @@
 import html
+import os
+import urllib.parse
+from concurrent.futures import ThreadPoolExecutor
+
 import streamlit as st
 import requests
 import pandas as pd
@@ -563,28 +567,29 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
-def get_movie_poster(movie_title):
-    import urllib.parse
-    import os
+@st.cache_resource(show_spinner=False)
+def _omdb_api_key():
     try:
         from dotenv import load_dotenv
         load_dotenv()
     except ImportError:
         pass
-    
-    # Try getting the API key from secrets, then environment variable
     try:
-        api_key = st.secrets["OMDB_API_KEY"]
+        return st.secrets["OMDB_API_KEY"]
     except Exception:
-        api_key = os.environ.get("OMDB_API_KEY", "")
-        
+        return os.environ.get("OMDB_API_KEY", "")
+
+
+@st.cache_data(ttl=86400, show_spinner=False)
+def get_movie_poster(movie_title):
+    """Resolve one poster URL (OMDB). Cached per title; use resolve_poster_urls for parallel fetches."""
+    api_key = _omdb_api_key()
     query = urllib.parse.quote(movie_title)
-    
+
     if api_key:
         try:
             url = f"http://www.omdbapi.com/?t={query}&apikey={api_key}"
-            r = requests.get(url, timeout=3)
+            r = requests.get(url, timeout=2)
             r.raise_for_status()
             data = r.json()
             poster = data.get("Poster")
@@ -592,9 +597,18 @@ def get_movie_poster(movie_title):
                 return poster
         except Exception:
             pass
-            
-    # Fallback to a placeholder image if API is missing or fails
+
     return f"https://placehold.co/500x750/1a1a1a/e50914.png?text={query}"
+
+
+def resolve_poster_urls(titles):
+    """Fetch poster URLs concurrently so the row loads in ~one round-trip time, not N sequential."""
+    titles = list(titles)
+    if not titles:
+        return []
+    workers = min(8, len(titles))
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        return list(pool.map(get_movie_poster, titles))
 
 def api(method, path, **kwargs):
     try:
@@ -610,11 +624,13 @@ def risk_badge(risk):
     return f'<span class="{cls}">{risk} Risk</span>'
 
 
-def poster_rail_html(items, poster_fn):
+def poster_rail_html(items):
     """Single horizontal-scroll row (Netflix-style on mobile); escapes text for safe HTML."""
+    subset = items[:5]
+    poster_urls = resolve_poster_urls([x["title"] for x in subset])
     chunks = ['<div class="nexus-poster-rail"><div class="nexus-poster-rail__track">']
-    for item in items[:5]:
-        poster_url = poster_fn(item["title"])
+    for idx, item in enumerate(subset):
+        poster_url = poster_urls[idx]
         title_txt = html.escape(item["title"])
         title_attr = html.escape(item["title"], quote=True)
         genre = html.escape(str(item["genre"]))
@@ -623,9 +639,10 @@ def poster_rail_html(items, poster_fn):
         src = html.escape(poster_url, quote=True)
         badge_txt = "📱 Mobile Optimised" if item["mobile_optimised"] else "🖥️ All Devices"
         badge = html.escape(badge_txt)
+        loading = "lazy" if idx > 0 else "eager"
         chunks.append(
             f'<div class="poster-card">'
-            f'<img src="{src}" class="poster-img" alt="{title_attr}">'
+            f'<img src="{src}" class="poster-img" alt="{title_attr}" loading="{loading}">'
             f'<div class="poster-overlay">'
             f'<div class="poster-title">{title_txt}</div>'
             f'<div class="poster-info-hover">'
@@ -887,7 +904,7 @@ with tab2:
             if len(items) == 0:
                 st.warning("⚠️ No recommendations found")
             else:
-                st.markdown(poster_rail_html(items, get_movie_poster), unsafe_allow_html=True)
+                st.markdown(poster_rail_html(items), unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("<div class='section-title'>INDIA CONTENT REACH MAP</div>", unsafe_allow_html=True)
