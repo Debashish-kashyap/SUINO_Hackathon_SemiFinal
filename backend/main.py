@@ -8,13 +8,18 @@ import numpy as np
 import pandas as pd
 import os
 from datetime import datetime
-import google.generativeai as genai
+from google import genai
 import json
 
 BASE_DIR = os.path.dirname(__file__)
 
-genai.configure(api_key="AIzaSyC5BTetHQ-EDbtk0znu4EeRr11yokVDuEE")
-
+# client = genai.Client(api_key="API KEY")
+# response = client.models.generate_content(
+#     model="gemini-2.5-flash",
+#     contents="Hello"
+# )
+# 
+# print(response.text)
 
 app = FastAPI(
     title="Netflix NEXUS AI",
