@@ -3,16 +3,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Optional, List, Literal
 import pickle
+import joblib
 import numpy as np
 import pandas as pd
 import os
 from datetime import datetime
-from google import genai
+import google.generativeai as genai
 import json
 
 BASE_DIR = os.path.dirname(__file__)
 
-client = genai.Client(api_key="AIzaSyC5BTetHQ-EDbtk0znu4EeRr11yokVDuEE")
+genai.configure(api_key="AIzaSyC5BTetHQ-EDbtk0znu4EeRr11yokVDuEE")
 
 
 app = FastAPI(
@@ -31,7 +32,9 @@ app.add_middleware(
 
 
 try:
-    model = pickle.load(open("model.pkl", "rb"))
+    model_path = os.path.join(BASE_DIR, "model.pkl")
+
+    model = joblib.load(model_path)
     print("✅ model.pkl loaded successfully")
 except FileNotFoundError:
     model = None
@@ -109,9 +112,25 @@ RETENTION_MESSAGES = {
     "Tier-1": "💎 As a valued member, enjoy 1 month Premium FREE. Binge {top_show} and more — no interruptions. Tap to activate.",
 }
 
+RETENTION_LOGS = []
+
+MOCK_USERS = [
+    {"user_id": "USR_MUM_24", "age": 24, "region_type": "Tier-1", "language": "Marathi", "churn_prob": 0.12, "risk_level": "Low"},
+    {"user_id": "USR_DIB_19", "age": 19, "region_type": "Tier-3", "language": "Assamese", "churn_prob": 0.88, "risk_level": "High"},
+    {"user_id": "USR_PUN_35", "age": 35, "region_type": "Tier-2", "language": "Hindi", "churn_prob": 0.45, "risk_level": "Medium"},
+    {"user_id": "USR_CHE_42", "age": 42, "region_type": "Tier-1", "language": "Tamil", "churn_prob": 0.18, "risk_level": "Low"},
+    {"user_id": "USR_GUW_28", "age": 28, "region_type": "Tier-2", "language": "Assamese", "churn_prob": 0.65, "risk_level": "High"},
+]
+
+class AddMovieRequest(BaseModel):
+    title: str
+    genre: Optional[str] = None
+    genres: Optional[str] = None
+    language: str
+
+
 class UserFeatures(BaseModel):
 
-    # ── PRIMARY (mandatory)
     age:                    int   = Field(..., ge=10, le=100, example=24)
     account_age_months:     int   = Field(..., ge=0, le=240, example=3)
     subscription_type:      Literal["Basic", "Standard", "Premium", "Mobile"] = Field(..., example="Basic")
@@ -123,7 +142,6 @@ class UserFeatures(BaseModel):
     region_type:            Literal["Tier-1", "Tier-2", "Tier-3"] = Field(..., example="Tier-2")
     language:               Literal["Assamese", "Hindi", "Tamil", "Kannada", "Marathi", "English"] = Field(..., example="Assamese")
 
-    # ── SECONDARY (optional — None = use dataset average)
     gender:                    Optional[Literal["Male", "Female", "Other"]] = Field(None)
     payment_method:            Optional[Literal["Credit Card", "Debit Card", "UPI", "Net Banking", "Wallet"]] = Field(None)
     primary_device:            Optional[Literal["Mobile", "Tablet", "Laptop", "Smart TV", "Desktop"]] = Field(None)
@@ -158,21 +176,19 @@ class RetainRequest(BaseModel):
     churn_prob:  float
 
 
-# ─────────────────────────────────────────────
-# DATASET AVERAGES (used when optional fields are None)
-# ─────────────────────────────────────────────
+
 FIELD_AVERAGES = {
-    "gender":                    1,      # Male (most common)
-    "payment_method":            2,      # UPI (most common in India)
-    "primary_device":            2,      # Mobile
+    "gender":                    1,      
+    "payment_method":            2,      
+    "primary_device":            2,     
     "devices_used":              2,
-    "favorite_genre":            2,      # Drama
+    "favorite_genre":            2,      
     "binge_watch_sessions":      2,
     "rating_given":              3.5,
     "content_interactions":      15,
     "recommendation_click_rate": 0.35,
     "churned":                   0,
-    "city":                      4,      # Guwahati code
+    "city":                      4,      
 }
 
 
@@ -205,7 +221,6 @@ def encode_user(u: UserFeatures) -> np.ndarray:
         u.content_interactions if u.content_interactions is not None else FIELD_AVERAGES["content_interactions"],
         u.recommendation_click_rate if u.recommendation_click_rate is not None else FIELD_AVERAGES["recommendation_click_rate"],
         u.days_since_last_login,
-        u.churned if u.churned is not None else FIELD_AVERAGES["churned"],
         REGION_MAP.get(u.region_type, 0),
         CITY_MAP.get(u.city, FIELD_AVERAGES["city"]) if u.city else FIELD_AVERAGES["city"],
         LANGUAGE_MAP.get(u.language, 0),
@@ -418,6 +433,14 @@ def retain_user(req: RetainRequest):
 
     discount_map = {"Tier-3": "₹99/month", "Tier-2": "₹199/month", "Tier-1": "1 Month Free"}
     offer = discount_map.get(req.region_type, "Special Offer")
+    
+    timestamp = datetime.now().isoformat()
+    
+    RETENTION_LOGS.append({
+        "user_id": req.user_id,
+        "offer": offer,
+        "timestamp": timestamp
+    })
 
     return {
         "action":         "whatsapp_nudge_triggered",
@@ -426,7 +449,7 @@ def retain_user(req: RetainRequest):
         "offer":          offer,
         "message_preview": message,
         "channel":        "WhatsApp Business API (simulated)",
-        "timestamp":      datetime.now().isoformat(),
+        "timestamp":      timestamp,
         "status":         "✅ Sent (demo mode — no real message dispatched)",
     }
 
@@ -492,4 +515,61 @@ def recommend_feature_ml(data: dict):
         "type": "feature_based",
         "input": query,
         "recommendations": ml_recommend_by_features(query)
+    }
+
+
+@app.get("/admin/users", tags=["Admin"])
+def get_admin_users():
+    return {"users": MOCK_USERS}
+
+@app.get("/admin/retention-logs", tags=["Admin"])
+def get_retention_logs():
+    return {"logs": RETENTION_LOGS}
+
+@app.post("/admin/add-movie", tags=["Admin"])
+def admin_add_movie(req: AddMovieRequest):
+    global movies  
+    
+    genre_val = req.genre if req.genre else req.genres
+    if not genre_val:
+        genre_val = "Unknown"
+        
+    if req.language in REGIONAL_CONTENT:
+        REGIONAL_CONTENT[req.language].append({"title": req.title, "genre": genre_val, "score": 8.0})
+    else:
+        REGIONAL_CONTENT[req.language] = [{"title": req.title, "genre": genre_val, "score": 8.0}]
+        
+    if movies is not None:
+        try:
+            new_row = pd.DataFrame([{"title": req.title, "genres": genre_val, "language": req.language}])
+            movies = pd.concat([movies, new_row], ignore_index=True)
+        except Exception as e:
+            print("Could not append to movies DataFrame:", e)
+            
+    return {"status": "success", "message": f"Successfully added '{req.title}'."}
+
+@app.get("/admin/insights", tags=["Admin"])
+def get_admin_insights():
+    if not MOCK_USERS:
+        return {"error": "No users available for insights."}
+        
+    avg_churn = sum(u["churn_prob"] for u in MOCK_USERS) / len(MOCK_USERS)
+    
+    langs = [u["language"] for u in MOCK_USERS]
+    most_common_lang = max(set(langs), key=langs.count)
+    
+    region_churn = {}
+    region_counts = {}
+    for u in MOCK_USERS:
+        reg = u["region_type"]
+        region_churn[reg] = region_churn.get(reg, 0) + u["churn_prob"]
+        region_counts[reg] = region_counts.get(reg, 0) + 1
+        
+    avg_region_churn = {r: region_churn[r] / region_counts[r] for r in region_churn}
+    top_churn_region = max(avg_region_churn, key=avg_region_churn.get)
+    
+    return {
+        "top_churn_region": top_churn_region,
+        "most_common_language": most_common_lang,
+        "avg_churn_probability": round(avg_churn, 4)
     }

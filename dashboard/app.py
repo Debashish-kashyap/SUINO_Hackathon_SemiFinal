@@ -425,8 +425,8 @@ hr { border-color: #222 !important; }
         padding: 8px 10px !important;
     }
 }
-
-/* ═══════════════════════════════════════════
+            
+* ═══════════════════════════════════════════
    MOBILE RESPONSIVE — Small phone (≤480px)
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
@@ -581,19 +581,35 @@ def _omdb_api_key():
 
 
 @st.cache_data(ttl=86400, show_spinner=False)
+def _fetch_poster_from_omdb(movie_title, api_key):
+    """Internal fetcher: caches successes and true 'not found's, but raises exceptions on network/API errors to avoid caching them."""
+    query = urllib.parse.quote(movie_title)
+    url = f"http://www.omdbapi.com/?t={query}&apikey={api_key}"
+    r = requests.get(url, timeout=4)
+    r.raise_for_status()
+    data = r.json()
+    
+    if data.get("Response") == "False":
+        if data.get("Error") == "Movie not found!":
+            return "NOT_FOUND"
+        else:
+            raise ValueError(f"OMDB API Error: {data.get('Error')}")
+            
+    poster = data.get("Poster")
+    if poster and poster != "N/A":
+        return poster
+        
+    return "NOT_FOUND"
+
 def get_movie_poster(movie_title):
-    """Resolve one poster URL (OMDB). Cached per title; use resolve_poster_urls for parallel fetches."""
+    """Resolve one poster URL (OMDB). Cached per title via internal function; gracefully handles temporary errors without caching them."""
     api_key = _omdb_api_key()
     query = urllib.parse.quote(movie_title)
 
     if api_key:
         try:
-            url = f"http://www.omdbapi.com/?t={query}&apikey={api_key}"
-            r = requests.get(url, timeout=2)
-            r.raise_for_status()
-            data = r.json()
-            poster = data.get("Poster")
-            if poster and poster != "N/A":
+            poster = _fetch_poster_from_omdb(movie_title, api_key)
+            if poster != "NOT_FOUND":
                 return poster
         except Exception:
             pass
@@ -687,7 +703,6 @@ with st.sidebar:
     st.markdown("### 👤 User Profile Input")
     st.markdown("---")
 
-    # ── PRIMARY FIELDS (always visible)
     age          = st.slider("Age", 16, 70, 24)
     account_age  = st.slider("Account Age (months)", 0, 120, 3)
     sub_type     = st.selectbox("Subscription", ["Basic", "Standard", "Premium", "Mobile"])
@@ -701,7 +716,6 @@ with st.sidebar:
 
     st.markdown("---")
 
-    # ── SECONDARY FIELDS (collapsible)
     with st.expander("⚙️ Advanced Options (optional)"):
         gender       = st.selectbox("Gender", ["— Not specified —", "Male", "Female", "Other"])
         payment      = st.selectbox("Payment Method", ["— Not specified —", "UPI", "Credit Card", "Debit Card", "Net Banking", "Wallet"])
@@ -719,7 +733,6 @@ with st.sidebar:
 
     predict_btn = st.button("🔍 Analyse User", use_container_width=True)
 
-    # ── RESOLVE OPTIONAL VALUES (None if not specified)
     gender_val       = None if gender == "— Not specified —" else gender
     payment_val      = None if payment == "— Not specified —" else payment
     device_val       = None if device == "— Not specified —" else device
@@ -734,7 +747,7 @@ with st.sidebar:
 
 
 
-tab1, tab2, tab3 = st.tabs(["🛡️ Churn Shield AI", "🗺️ Regional Intelligence", "📊 Growth Dashboard"])
+tab1, tab2, tab3, tab4 = st.tabs(["🛡️ Churn Shield AI", "🗺️ Regional Intelligence", "📊 Growth Dashboard", "🛠️ Admin Panel"])
 
 
 with tab1:
@@ -769,91 +782,124 @@ with tab1:
 
         if result:
             st.session_state["prediction_result"] = result
-            # Store sidebar values so the retain button can use them on rerun
             st.session_state["last_language"] = language
             st.session_state["last_region"] = region
             st.session_state["last_city"] = city_val
             st.session_state["last_age"] = age
-            # Clear any previous retain result when a new prediction is made
             st.session_state.pop("retain_result", None)
+            st.session_state.pop("show_retain_result", None)
 
     if "prediction_result" in st.session_state:
         result = st.session_state["prediction_result"]
-        prob  = result["churn_prob"]
-        risk  = result["user_risk"]
-        label = result["churn_label"]
-        factors = result["risk_factors"]
-        rec   = result["recommendation"]
-
-        c1, c2 = st.columns([1, 1.6])
-        with c1:
-            st.plotly_chart(gauge_chart(prob), use_container_width=True)
-        with c2:
-            st.markdown(f"<div class='section-title'>PREDICTION RESULT</div>", unsafe_allow_html=True)
-            st.markdown(f"**Risk Level:** {risk_badge(risk)}", unsafe_allow_html=True)
-            st.markdown(f"**Churn Probability:** `{prob*100:.1f}%`")
-            st.markdown(f"**Model Decision:** {'⚠️ Will Churn' if label else '✅ Will Retain'}")
-            st.markdown("---")
-            st.markdown(f"💡 **AI Recommendation:** {rec}")
-
-        st.markdown("<div class='section-title'>RISK FACTORS</div>", unsafe_allow_html=True)
-        for f in factors:
-            st.markdown(f"🔴 {f}")
-
-        st.markdown("<div class='section-title'>RETENTION ACTION</div>", unsafe_allow_html=True)
-
-        retain_btn = st.button("📲 Trigger WhatsApp Retention Nudge", use_container_width=True)
-
-        if retain_btn:
-            # Use stored sidebar values from session_state so they survive rerun
-            stored_city = st.session_state.get("last_city", None)
-            stored_language = st.session_state.get("last_language", language)
-            stored_region = st.session_state.get("last_region", region)
-            stored_age = st.session_state.get("last_age", age)
-
-            retain_payload = {
-                "user_id": f"USR_{stored_city[:3].upper() if stored_city else 'GEN'}_{stored_age}",
-                "language": stored_language,
-                "region_type": stored_region,
-                "churn_prob": prob,
-            }
-
-            with st.spinner("📡 Sending WhatsApp message..."):
-                time.sleep(1)
-                r2 = api("POST", "/retain", json=retain_payload)
-            if r2:
-                st.session_state["retain_result"] = r2    
-
-        if "retain_result" in st.session_state:
-            r2 = st.session_state["retain_result"]
-
-            if r2.get("action") == "none":
-                st.info("ℹ️ User risk is LOW — no retention action required.")
-            else:
-                user_id = r2.get("user_id", "Unknown")
-                offer = r2.get("offer", "Special Offer")
-                msg = r2.get("message_preview", "")
-                channel = r2.get("channel", "")
-                ts = r2.get("timestamp", "")
-
-                st.markdown(
-                    f'<div style="background:#ECE5DD;border-radius:14px;'
-                    f'padding:0;max-width:540px;margin-top:14px;border:1px solid #d1ccc0;overflow:hidden;">'
-                    f'<div style="background:#075E54;padding:14px 20px;display:flex;align-items:center;gap:10px;">'
-                    f'<span style="font-size:1.3rem;">📲</span>'
-                    f'<span style="color:#fff;font-weight:700;font-size:1.05rem;letter-spacing:0.5px;">WhatsApp Message Sent</span>'
-                    f'</div>'
-                    f'<div style="padding:18px 20px;">'
-                    f'<div style="color:#555;font-size:0.78rem;margin-bottom:12px;">To: <span style="color:#075E54;font-weight:700;">{user_id}</span> &nbsp;·&nbsp; Offer: <span style="color:#075E54;font-weight:700;">{offer}</span></div>'
-                    f'<div style="background:#DCF8C6;border-radius:8px;padding:12px 14px;color:#303030;font-size:0.92rem;line-height:1.65;box-shadow:0 1px 2px rgba(0,0,0,0.1);">'
-                    f'{msg}'
-                    f'<div style="text-align:right;margin-top:8px;color:#6b9b7d;font-size:0.72rem;">✓✓ Delivered &nbsp;·&nbsp; {ts}</div>'
-                    f'</div>'
-                    f'<div style="color:#999;font-size:0.72rem;margin-top:10px;">📡 {channel}</div>'
-                    f'</div>'
-                    f'</div>',
-                    unsafe_allow_html=True,
-                )
+        
+        if "churn_prob" not in result:
+            st.error(f"API Error from Backend: {result.get('detail', result)}")
+        else:
+            prob  = result["churn_prob"]
+            risk  = result["user_risk"]
+            label = result["churn_label"]
+            factors = result["risk_factors"]
+            rec   = result["recommendation"]
+    
+            c1, c2 = st.columns([1, 1.6])
+            with c1:
+                st.plotly_chart(gauge_chart(prob), use_container_width=True)
+            with c2:
+                st.markdown(f"<div class='section-title'>PREDICTION RESULT</div>", unsafe_allow_html=True)
+                st.markdown(f"**Risk Level:** {risk_badge(risk)}", unsafe_allow_html=True)
+                st.markdown(f"**Churn Probability:** `{prob*100:.1f}%`")
+                st.markdown(f"**Model Decision:** {'⚠️ Will Churn' if label else '✅ Will Retain'}")
+                st.markdown("---")
+                st.markdown(f"💡 **AI Recommendation:** {rec}")
+    
+            st.markdown("<div class='section-title'>RISK FACTORS</div>", unsafe_allow_html=True)
+            for f in factors:
+                st.markdown(f"🔴 {f}")
+    
+            st.markdown("<div class='section-title'>RETENTION ACTION</div>", unsafe_allow_html=True)
+    
+            retain_btn = st.button(
+                "📲 Trigger WhatsApp Retention Nudge",
+                use_container_width=True,
+                key="retain_btn",
+            )
+    
+            if retain_btn:
+                stored_city = st.session_state.get("last_city", None)
+                stored_language = st.session_state.get("last_language", language)
+                stored_region = st.session_state.get("last_region", region)
+                stored_age = st.session_state.get("last_age", age)
+    
+                retain_payload = {
+                    "user_id": f"USR_{stored_city[:3].upper() if stored_city else 'GEN'}_{stored_age}",
+                    "language": stored_language,
+                    "region_type": stored_region,
+                    "churn_prob": prob,
+                }
+    
+                with st.spinner("📡 Sending WhatsApp message..."):
+                    time.sleep(1)
+                    r2 = api("POST", "/retain", json=retain_payload)
+                if r2:
+                    st.session_state["retain_result"] = r2
+                    st.session_state["retain_toast_pending"] = True
+                    st.rerun()
+    
+            if st.session_state.get("retain_toast_pending") and st.session_state.get("retain_result"):
+                r2 = st.session_state["retain_result"]
+                if r2.get("action") != "none":
+                    st.markdown("""
+                    <style>
+                    @keyframes slideInGlow {
+                        0% { transform: translateX(120%); opacity: 0; }
+                        10% { transform: translateX(0); opacity: 1; box-shadow: 0 0 15px rgba(255,255,255,0.6); }
+                        50% { box-shadow: 0 0 35px rgba(255,255,255,1), 0 0 15px rgba(255,255,255,0.8); }
+                        85% { opacity: 1; transform: translateX(0); }
+                        100% { transform: translateX(120%); opacity: 0; pointer-events: none; }
+                    }
+                    @keyframes pulseBadge {
+                        0% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(229, 9, 20, 0.5); }
+                        70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(229, 9, 20, 0); }
+                        100% { transform: scale(0.85); box-shadow: 0 0 0 0 rgba(229, 9, 20, 0); }
+                    }
+                    .netflix-toast {
+                        position: fixed;
+                        top: 24px;
+                        right: 24px;
+                        background: #ffffff;
+                        color: #000000 !important;
+                        padding: 18px 28px;
+                        border-radius: 8px;
+                        font-family: 'DM Sans', sans-serif;
+                        font-size: 1.15rem;
+                        font-weight: 700;
+                        letter-spacing: 0.5px;
+                        z-index: 9999999;
+                        border: 1px solid #e50914;
+                        display: flex;
+                        align-items: center;
+                        gap: 16px;
+                        animation: slideInGlow 4s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+                        pointer-events: none;
+                    }
+                    .netflix-pulse {
+                        width: 12px;
+                        height: 12px;
+                        background-color: #e50914;
+                        border-radius: 50%;
+                        animation: pulseBadge 1.5s infinite;
+                    }
+                    </style>
+                    <div class="netflix-toast">
+                        <div class="netflix-pulse"></div>
+                        Retention Offer Sent!
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.toast("ℹ️ User risk is LOW — no retention action required.")
+    
+                st.session_state.pop("retain_result", None)
+                st.session_state.pop("retain_toast_pending", None)
 
     else:
         st.markdown("<div class='section-title'>HOW IT WORKS</div>", unsafe_allow_html=True)
@@ -896,8 +942,12 @@ with tab2:
             result = api("POST", "/recommend", json=payload)
 
         if result:
-            st.success(f"📍 Showing top picks for **{r_lang}** speakers in **{r_region}** cities")
-            st.caption(f"🤖 {result['ai_note']}")
+            if "error" in result:
+                st.error(f"Error: {result['error']}")
+            else:
+                st.success(f"📍 Showing top picks for **{r_lang}** speakers in **{r_region}** cities")
+                if "ai_note" in result:
+                    st.caption(f"🤖 {result['ai_note']}")
 
             items = result.get("content", [])
 
@@ -938,6 +988,11 @@ with tab3:
     with st.spinner("Loading growth metrics..."):
         data = api("GET", "/dashboard")
 
+    if data:
+        if "total_users" not in data:
+            st.error(f"Error loading dashboard: {data.get('detail', data)}")
+            data = None
+            
     if data:
         st.markdown("<div class='section-title'>PLATFORM OVERVIEW</div>", unsafe_allow_html=True)
         k1, k2, k3, k4 = st.columns(4)
@@ -998,7 +1053,7 @@ with tab3:
             for city, v in heat.items()
         ])
         st.dataframe(
-            heat_df.style.applymap(
+            heat_df.style.map(
                 lambda v: "color: #e50914; font-weight:bold" if "%" in str(v) and float(str(v).strip("%"))/100 > 0.4
                 else ("color: #f5a623" if "%" in str(v) else ""),
                 subset=["Churn Rate"]
@@ -1007,3 +1062,122 @@ with tab3:
         )
 
         st.caption(f"Last updated: {data['last_updated']} · Top churn segment: {data['top_churn_segment']}")
+
+def show_admin_login():
+    st.markdown("<div class='section-title'>🛡️ ADMIN AUTHENTICATION</div>", unsafe_allow_html=True)
+    with st.container():
+        c1, c2, c3 = st.columns([1, 2, 1])
+        with c2:
+            with st.form("admin_login_form"):
+                st.markdown("<h3 style='text-align:center;'>🔐 Admin Login</h3>", unsafe_allow_html=True)
+                username = st.text_input("Username")
+                password = st.text_input("Password", type="password")
+                submit = st.form_submit_button("Login", use_container_width=True)
+                if submit:
+                    if username == "admin" and password == "netflix123":
+                        st.session_state["admin_logged_in"] = True
+                        st.rerun()
+                    else:
+                        st.error("Invalid credentials")
+
+def show_admin_dashboard():
+    st.markdown("<div class='section-title'>📊 DASHBOARD OVERVIEW</div>", unsafe_allow_html=True)
+    with st.spinner("Loading admin dashboard..."):
+        data = api("GET", "/dashboard")
+    
+    if data:
+        k1, k2, k3, k4 = st.columns(4)
+        kpis = [
+            (data.get("total_users", 0), "Total Users"),
+            (data.get("high_risk_users", 0), "High Risk Users"),
+            (data.get("retentions_triggered", 0), "Retentions Triggered"),
+            (f"{data.get('churn_rate_overall', 0):.0%}'" if isinstance(data.get("churn_rate_overall"), float) else "0%", "Churn Rate"),
+        ]
+        for col, (val, label) in zip([k1,k2,k3,k4], kpis):
+            with col:
+                display_val = f"{val:,}" if isinstance(val, int) else val
+                st.markdown(f"""
+                <div class='metric-card'>
+                    <div class='metric-value'>{display_val}</div>
+                    <div class='metric-label'>{label}</div>
+                </div>
+                """, unsafe_allow_html=True)
+
+def show_user_table():
+    st.markdown("<div class='section-title'>👤 USER INSIGHTS</div>", unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        f_region = st.selectbox("Filter Region", ["All", "Tier-1", "Tier-2", "Tier-3"], key="filter_region")
+    with c2:
+        f_lang = st.selectbox("Filter Language", ["All", "Hindi", "English", "Tamil", "Telugu", "Assamese", "Kannada", "Marathi"], key="filter_lang")
+    with c3:
+        f_risk = st.selectbox("Filter Risk Level", ["All", "High", "Medium", "Low"], key="filter_risk")
+        
+    with st.spinner("Loading users..."):
+        users_data = api("GET", "/admin/users")
+        
+    if users_data and "users" in users_data:
+        df = pd.DataFrame(users_data["users"])
+        if not df.empty:
+            if f_region != "All":
+                df = df[df.get("region_type", df.get("region", "")) == f_region]
+            if f_lang != "All":
+                df = df[df.get("language", "") == f_lang]
+            if f_risk != "All":
+                df = df[df.get("risk_level", df.get("risk", "")) == f_risk]
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("No users found")
+    else:
+        st.info("User insights API endpoint not fully implemented or no data returned.")
+
+def show_content_manager():
+    st.markdown("<div class='section-title'>🎬 CONTENT MANAGEMENT</div>", unsafe_allow_html=True)
+    with st.form("add_movie_form"):
+        title = st.text_input("Movie Title")
+        genre = st.text_input("Genre")
+        language = st.selectbox("Language", ["English", "Hindi", "Tamil", "Telugu", "Kannada", "Malayalam", "Marathi", "Assamese"])
+        submit = st.form_submit_button("Add Movie", use_container_width=True)
+        
+        if submit:
+            if title and genre:
+                payload = {"title": title, "genre": genre, "language": language}
+                with st.spinner("Adding movie..."):
+                    res = api("POST", "/admin/add-movie", json=payload)
+                if res:
+                    st.success(f"Successfully added '{title}'!")
+                else:
+                    st.error("Failed to add movie.")
+            else:
+                st.warning("Please fill in Title and Genre")
+
+def show_retention_logs():
+    st.markdown("<div class='section-title'>📲 RETENTION LOGS</div>", unsafe_allow_html=True)
+    with st.spinner("Loading logs..."):
+        logs_data = api("GET", "/admin/retention-logs")
+        
+    if logs_data and "logs" in logs_data:
+        df = pd.DataFrame(logs_data["logs"])
+        if not df.empty:
+            st.dataframe(df, use_container_width=True)
+        else:
+            st.info("No retention logs found")
+    else:
+        st.info("Retention logs API endpoint not fully implemented or no data returned.")
+
+with tab4:
+    if not st.session_state.get("admin_logged_in", False):
+        show_admin_login()
+    else:
+        st.button("🔓 Logout", on_click=lambda: st.session_state.update({"admin_logged_in": False}))
+        show_admin_dashboard()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        show_user_table()
+        
+        st.markdown("<br>", unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            show_content_manager()
+        with c2:
+            show_retention_logs()

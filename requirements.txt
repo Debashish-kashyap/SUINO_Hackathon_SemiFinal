@@ -1,6 +1,15 @@
 fastapi
 uvicorn[standard]
 pydantic
+
+streamlit
+plotly
+
 scikit-learn
 pandas
 numpy
+joblib
+
+requests
+python-dotenv
+google-generativeai
