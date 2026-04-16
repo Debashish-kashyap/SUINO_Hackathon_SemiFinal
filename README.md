@@ -1,209 +1,146 @@
-# 🎬 Netflix Nexus AI
-
-An AI-powered full-stack application that combines **Churn Prediction** and a **Movie Recommendation System** with an interactive dashboard.
-
----
-
-## 🚀 Features
-
-### 📊 1. Churn Prediction
-
-* Predicts whether a user is likely to churn
-* Built using Machine Learning model (`model.pkl`)
-* FastAPI backend for real-time predictions
+# 🎬 Netflix NEXUS AI  
+### 🚀 Hybrid AI Growth Engine for Churn Prediction, Regional Intelligence & Retention Automation
 
 ---
 
-### 🎯 2. Movie Recommendation System
+## 📌 Problem Statement & Objective
 
-* Content-based recommendation engine
+With increasing competition in OTT platforms, **user churn** has become a major challenge. Platforms like Netflix struggle to:
 
-Suggests movies based
+- Identify users likely to churn in advance  
+- Personalize content for diverse regional audiences  
+- Trigger timely retention strategies  
 
-* Genre / feature input
-
----
-
-### 🤖 3. Hybrid AI System
-
-* Primary: LLM-based recommendations (if API available)
-* Fallback: ML-based recommender (offline, no API needed)
-
----
-
-### 📈 4. Streamlit Dashboard
-
-* Interactive UI for:
-
-  * Churn insights
-  * Regional intelligence
-  * Recommendations
+### 🎯 Objective
+Build an **AI-powered system** that:
+- Predicts user churn probability  
+- Provides region-specific content recommendations  
+- Automates retention actions for high-risk users  
 
 ---
 
-## 🏗️ Project Structure
+## 🔍 Gap Analysis (Current vs Proposed Solution)
 
-```
-netflix-nexus-ai/
-│
-├── backend/
-│   ├── main.py
-│   ├── train_recommender.py
-│   ├── movies.pkl
-│   ├── similarity.pkl
-│   ├── vectorizer.pkl
-│   ├── vectors.pkl
-│   └── model.pkl
-│
-├── dashboard/
-│   └── app.py
-│
-├── data/
-│   └── netflix_titles.csv / tmdb dataset
-│
-├── requirements.txt
-└── README.md
-```
+| Aspect | Current Systems | Proposed Solution (Netflix NEXUS AI) |
+|--------|----------------|--------------------------------------|
+| Churn Prediction | Reactive | ✅ Proactive AI-based prediction |
+| Personalization | Generic recommendations | ✅ Region + language aware |
+| Retention Strategy | Manual campaigns | ✅ Automated intelligent triggers |
+| Regional Focus | Limited | ✅ Tier-based + hyper-local insights |
+| Admin Control | Minimal | ✅ Interactive admin panel |
 
 ---
 
-## ⚙️ Setup Instructions
+## 🏗️ System Architecture / Workflow
+
+### 🔄 End-to-End Flow:
+
+1. **User Input (Frontend - Streamlit)**  
+   - Demographics, subscription, behavior data  
+
+2. **Churn Prediction (FastAPI + ML Model)**  
+   - RandomForest model predicts churn probability  
+
+3. **Risk Analysis**  
+   - Classifies user → Low / Medium / High risk  
+
+4. **Recommendation Engine**  
+   - Suggests region + language-based content  
+
+5. **Retention Engine**  
+   - Triggers personalized offers for high-risk users  
+
+6. **Admin Panel**  
+   - Monitor users, logs, insights, add content  
+
+---
+
+### 🧠 Architecture Diagram (Conceptual)
+blob:https://chatgpt.com/b97df215-1f4a-4bf8-8a37-64dec4f3a375
+
+
+
+---
+
+## ⚙️ Technology Stack
+
+### 🖥️ Frontend
+- Streamlit  
+- Plotly (visualizations)  
+- Custom CSS (Netflix-style UI)
+
+### ⚙️ Backend
+- FastAPI  
+- Pydantic (data validation)  
+- Uvicorn (server)
+
+### 🤖 Machine Learning
+- Scikit-learn (RandomForest)  
+- Pandas, NumPy  
+- Joblib / Pickle (model storage)
+
+### 🧠 AI Integration
+- Google Generative AI (Gemini) *(optional)*
+
+---
+
+## 🛠️ Setup & Execution Steps
 
 ### 1️⃣ Clone Repository
-
 ```bash
-git clone https://github.com/your-username/netflix-nexus-ai.git
+git clone <your-repo-link>
 cd netflix-nexus-ai
-```
-
 ---
 
 ### 2️⃣ Create Virtual Environment
-
-```bash
 python -m venv venv
 venv\Scripts\activate   # Windows
-```
-
----
 
 ### 3️⃣ Install Dependencies
-
-```bash
 pip install -r requirements.txt
-```
 
----
+### 4️⃣ Train Model Churn prediction
+cd model
+python train.py
 
-### 4️⃣ Add Dataset
-
-Place dataset inside `backend/`:
-
-netflix_titles.csv
-
-place dataset inside data/:
-
-netflix_user_behavior_dataset.csv
-
----
-
-### 5️⃣ Train Recommendation Model
-
-```bash
+### 5️⃣ Train model recommendation
 cd backend
 python train_recommender.py
-```
 
-✔️ This generates:
-
-* movies.pkl
-* similarity.pkl
-* vectorizer.pkl
-* vectors.pkl
-
----
-
-### 6️⃣ Run Backend (FastAPI)
-inside backend/
-
-```bash
+### 6 Run Backend (FastAPI)
+cd ../backend
 uvicorn main:app --reload
-```
 
-🔗 Open:
+### 7 Run Frontend (Streamlit)
+cd ../dashboard
+streamlit run app.py
 
+---
 ```
-http://127.0.0.1:8000/docs
-```
+## 🔮 Future Scope
+
+- 🔗 Integration with real OTT APIs (Netflix, TMDB)  
+- 📲 Real WhatsApp / Push Notification APIs  
+- 📈 Real-time streaming data pipelines  
+- 🧠 Deep Learning models (LSTM for behavior analysis)  
+- 🌍 Multi-country localization  
+- 📊 Explainable AI (SHAP integration)  
 
 ---
 
-### 7️⃣ Run Dashboard (Streamlit)
-inside venv
+## ⚠️ Limitations
 
-streamlit run dashboard/app.py
-
-
----
-
-### *For working Prototype : Open Two terminal----In one: Run backend;    In another : Run Frontend (Streamlit)
-
-## 🔌 API Endpoints
-
-### 🔹 Churn Prediction
-
-```
-POST /predict
-```
+- Uses **synthetic dataset** (not real user data)  
+- Retention system is **simulated (no real API integration)**  
+- Model accuracy depends on generated patterns  
+- Prototype-level scalability  
 
 ---
 
-### 🔹 Movie Recommendation (ML)
+## 👨‍💻 Team
+**Team SUINO**  
+AI + Full Stack Innovation Project  
 
-```
-POST /recommend-ml
-```
 
----
-
-### 🔹 Hybrid Recommendation
-
-```
-POST /recommend
-```
 
 ---
-
-## 🧠 Tech Stack
-
-* **Backend:** FastAPI
-* **Frontend:** Streamlit
-* **ML:** Scikit-learn
-* **Data:** Pandas, NumPy
-
----
-
-## ⚠️ Notes
-
-* If LLM API key is not available, system automatically switches to ML recommendations
-* Ensure all `.pkl` files are inside `backend/`
-* Run backend from inside `backend/` folder
-
----
-
-## 💡 Future Improvements
-
-* 🎬 Movie posters integration (TMDB API)
-* ⭐ Ratings & reviews
-* 👤 User-based collaborative filtering
-* 🌐 Deployment (AWS / Render / Vercel)
-
----
-
-## 👨‍💻 Author
-
-Team SUINO
-
----
-
-## ⭐ If you like this project, give it a star!
