@@ -55,8 +55,9 @@ Build an **AI-powered system** that:
 
 ---
 
-### 🧠 Architecture Diagram (Conceptual)
-blob:https://chatgpt.com/b97df215-1f4a-4bf8-8a37-64dec4f3a375
+### 🧠 Architecture Diagram 
+<img width="1536" height="1024" alt="ChatGPT Image Mar 24, 2026, 01_02_59 PM" src="https://github.com/user-attachments/assets/5efdbe6a-4393-4a59-aa6d-fda20219cd73" />
+
 
 
 
