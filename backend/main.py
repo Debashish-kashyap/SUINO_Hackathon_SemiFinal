@@ -8,18 +8,9 @@ import numpy as np
 import pandas as pd
 import os
 from datetime import datetime
-from google import genai
 import json
 
 BASE_DIR = os.path.dirname(__file__)
-
-# client = genai.Client(api_key="API KEY")
-# response = client.models.generate_content(
-#     model="gemini-2.5-flash",
-#     contents="Hello"
-# )
-# 
-# print(response.text)
 
 app = FastAPI(
     title="Netflix NEXUS AI",
