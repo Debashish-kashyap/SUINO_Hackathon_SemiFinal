@@ -710,7 +710,10 @@ with st.sidebar:
     age          = st.slider("Age", 16, 70, 24)
     account_age  = st.slider("Account Age (months)", 0, 120, 3)
     sub_type     = st.selectbox("Subscription", ["Basic", "Standard", "Premium", "Mobile"])
-    monthly_fee  = st.number_input("Monthly Fee (₹)", 49, 799, 199)
+    monthly_fee  = monthly_fee = st.selectbox(
+                        "Monthly Fee (₹)",
+                        [199, 499, 699]
+                   )
     avg_watch    = st.slider("Avg Watch Time (min/session)", 0, 180, 25)
     sessions_pw  = st.slider("Watch Sessions / Week", 0, 30, 4)
     completion   = st.slider("Content Completion Rate", 0.0, 1.0, 0.5, 0.05)
@@ -1052,8 +1055,10 @@ with tab3:
         st.markdown("<div class='section-title'>REGIONAL PERFORMANCE HEATMAP</div>", unsafe_allow_html=True)
         heat = data["regional_heatmap"]
         heat_df = pd.DataFrame([
-            {"City": city, "Churn Rate": f"{v['churn_rate']:.0%}",
-             "Avg Watch Hrs": v["avg_watch_hrs"], "Top Language": v["top_language"]}
+            {"City": city, 
+             "Churn Rate": f"{v['churn_rate']:.0%}",
+             "Avg Watch Hrs": f"{v['avg_watch_hrs']:.2f}",
+             "Top Language": v["top_language"]}
             for city, v in heat.items()
         ])
         st.dataframe(
