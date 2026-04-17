@@ -584,15 +584,21 @@ def _omdb_api_key():
         return os.environ.get("OMDB_API_KEY", "")
 
 
-@st.cache_data(ttl=86400, show_spinner=False)
+@st.cache_data(ttl=3600, show_spinner=False)
 def _fetch_poster_from_omdb(movie_title, api_key):
-    """Internal fetcher: caches successes and true 'not found's, but raises exceptions on network/API errors to avoid caching them."""
     query = urllib.parse.quote(movie_title)
     url = f"http://www.omdbapi.com/?t={query}&apikey={api_key}"
-    r = requests.get(url, timeout=4)
-    r.raise_for_status()
-    data = r.json()
     
+    headers = {
+    "User-Agent": "Mozilla/5.0"
+    }
+    try:
+        r = requests.get(url, headers=headers, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+    except Exception:
+         raise
+
     if data.get("Response") == "False":
         if data.get("Error") == "Movie not found!":
             return "NOT_FOUND"
@@ -606,7 +612,6 @@ def _fetch_poster_from_omdb(movie_title, api_key):
     return "NOT_FOUND"
 
 def get_movie_poster(movie_title):
-    """Resolve one poster URL (OMDB). Cached per title via internal function; gracefully handles temporary errors without caching them."""
     api_key = _omdb_api_key()
     query = urllib.parse.quote(movie_title)
 
