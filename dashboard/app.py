@@ -16,8 +16,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded",
 )
+BACKEND = os.getenv("BACKEND_URL")
 
-BACKEND = "http://127.0.0.1:8000"
+if not BACKEND:
+    BACKEND = "http://127.0.0.1:8000"
+
+BACKEND = BACKEND.rstrip("/")
 
 st.markdown("""
 <style>
@@ -426,7 +430,7 @@ hr { border-color: #222 !important; }
     }
 }
             
-* ═══════════════════════════════════════════
+/* ═══════════════════════════════════════════
    MOBILE RESPONSIVE — Small phone (≤480px)
    ═══════════════════════════════════════════ */
 @media (max-width: 480px) {
